@@ -1,0 +1,57 @@
+name: Build, push and deploy to VM
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "k8s/**"
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    outputs:
+      build-id: ${{ steps.build-id.outputs.id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get build ID
+        id: build-id
+        run: echo "id=$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Docker Login
+        run: |
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker Build
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/flask-hello-world:latest .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/flask-hello-world:${{ steps.build-id.outputs.id }} .
+
+      - name: Docker Push
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/flask-hello-world:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/flask-hello-world:${{ steps.build-id.outputs.id }}
+
+  deploy-vm:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy to VM over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/flask-hello-world:${{ needs.build-and-publish.outputs.build-id }}
+            if [ "$(docker ps -q -f name=flask-hello-world)" ]; then
+              docker stop flask-hello-world
+              docker rm flask-hello-world
+            fi
+            docker run -d --name flask-hello-world -p 5000:5000 ${{ secrets.DOCKER_USERNAME }}/flask-hello-world:${{ needs.build-and-publish.outputs.build-id }}

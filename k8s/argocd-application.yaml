@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-hello-world
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ferraroluc/educacionit-docker-flask.git
+    targetRevision: main
+    path: k8s
+    directory:
+      exclude: argocd-application.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flask-hello-world
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
