@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
         - name: flask-hello-world
-          image: ferraroluc/flask-hello-world:latest
+          image: ferraroluc/flask-hello-world:34881063621
           ports:
             - containerPort: 5000
